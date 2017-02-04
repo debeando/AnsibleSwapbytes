@@ -1,0 +1,2 @@
+[swapbytes]
+138.68.64.72 ansible_ssh_port=22 ansible_ssh_user=root

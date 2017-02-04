@@ -1,0 +1,27 @@
+---
+- hostname:
+    name: swapbytes
+
+- name: Set locale file
+  copy:
+    src: "{{ role_path }}/files/environment"
+    dest: /etc/environment
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Upgrade all packages
+  yum: name=* state=latest
+
+- name: Install EPEL repository
+  yum:
+    name: epel-release.noarch
+    state: present
+
+- name: Basic packages and configs
+  yum: pkg={{item}} state=installed
+  with_items:
+    - htop
+    - sysstat
+    - vim
+    - nmap
