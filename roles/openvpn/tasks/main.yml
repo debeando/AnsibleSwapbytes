@@ -1,0 +1,98 @@
+---
+- name: Installing OpenVPN
+  yum: pkg={{item}} state=installed
+  with_items:
+    - openvpn
+    - easy-rsa
+  notify:
+    - Enable / Start OpenVPN
+
+- name: Write the config file
+  copy:
+    src: "{{ role_path }}/files/server.conf"
+    dest: /etc/openvpn/server.conf
+    owner: root
+    group: root
+    mode: 0440
+
+- name: Creates RSA directory
+  file:
+    path: /etc/openvpn/rsa/
+    owner: root
+    group: root
+    state: directory
+
+- stat: path=/etc/openvpn/rsa/build-ca
+  register: rsa_files
+
+- name: Copy RSA scripts
+  shell: "cp /usr/share/easy-rsa/2.0/* /etc/openvpn/rsa"
+  when: rsa_files.stat.exists == False
+
+- name: Copy ENV variables for RSA scripts
+  copy:
+    src: "{{ role_path }}/files/vars.sh"
+    dest: /etc/openvpn/rsa/vars.sh
+    owner: root
+    group: root
+    mode: 0744
+
+- name: Copy script for create CA & Keys for server
+  copy:
+    src: "{{ role_path }}/files/server.sh"
+    dest: /root/server.sh
+    owner: root
+    group: root
+    mode: 0744
+
+- name: Check CA & Keys for server
+  stat: path=/etc/openvpn/server.key
+  register: file_exists
+
+- name: Generate CA & Keys for server
+  command: /root/server.sh
+  when: not file_exists.stat.exists
+
+- name: Copy script for create ovpn files
+  copy:
+    src: "{{ role_path }}/files/ovpn.sh"
+    dest: /root/ovpn.sh
+    owner: root
+    group: root
+    mode: 0744
+
+- name: Enable IPv4 traffic forwarding
+  sysctl:
+    name: "net.ipv4.ip_forward"
+    value: 1
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Masquerade all traffic from VPN clients
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    source: 10.8.0.0/24
+    out_interface: eth0
+    jump: MASQUERADE
+  become: yes
+
+- name: Allow established traffic to pass back and forth
+  iptables:
+    action: append
+    chain: FORWARD
+    in_interface: eth0
+    out_interface: tun0
+    ctstate: RELATED,ESTABLISHED
+    jump: ACCEPT
+  become: yes
+
+- name: Allow traffic initiated from VPN to access LAN
+  iptables:
+    action: append
+    chain: FORWARD
+    in_interface: tun0
+    out_interface: eth0
+    jump: ACCEPT
+  become: yes

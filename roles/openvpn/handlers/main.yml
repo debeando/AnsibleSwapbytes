@@ -1,0 +1,6 @@
+---
+- name: Enable / Start OpenVPN
+  service:
+    name: openvpn@server
+    state: started
+    enabled: yes
